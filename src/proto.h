@@ -1,5 +1,5 @@
-#ifndef PROTO_INFO_H
-#define PROTO_INFO_H
+#ifndef PROTO_H
+#define PROTO_H
 
 extern "C" {
 #include <stdint.h>
@@ -30,4 +30,4 @@ namespace net03 {
 	
 }
 
-#endif /* PROTO_INFO_H */
+#endif /* PROTO_H */
