@@ -1,0 +1,44 @@
+
+	static const uint8_t STATUS_DEFAULT = 0;
+		static const uint8_t STATUS_TERM = 1;
+		static const uint8_t STATUS_DEAD = (1 << 1);		
+
+
+
+bool up_dead[PI_NUM_PROTOS]
+	bool down_dead[PI_NUM_PROTOS]
+	bool one_alive = false;
+	int i;
+
+	for(i = 0; i < PI_NUM_PROTOS; i++) {
+		up_dead[i] = false;
+		down_dead[i] = false;
+	}
+
+	
+	while(1) {
+		for(i = 0; i < PI_NUM_PROTOS; i++) {
+			if(up_dead[i] != true) {
+				if( (status = pthread_mutex_trylock(&m_protos_up[i].status_mtx) ) == 0) {
+					if(m_protos_up[i].status & per_proto::STATUS_DEAD) {
+						up_dead[i] = true;
+					}					
+				}
+				else if(status != EBUSY) {
+					FATAL(NULL);
+				}
+			}
+
+			one_alive = false;
+			for(j = 0; j < PI_NUM_PROTOS; j++) {
+				if(up_dead[i] || down_dead[i]) {
+					one_alive = true;
+				}
+			}
+
+			if(one_alive) 
+				continue;
+			else 
+				break;
+		}	
+	}
