@@ -7,7 +7,7 @@ extern "C" {
 #include <unistd.h>
 }
 
-#include "common.h"
+#include "net03_common.h"
 
 using namespace std;
 using namespace net03;
@@ -22,6 +22,7 @@ per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
 		}
 		pthread_mutex_init(&m_protos_up[i].write_pipe_mtx, NULL);
 		m_protos_up[i].proto_id = i+1;
+		m_protos_up[i].netstack = m_protos_up;
 		while(m_pool->dispatch_thread(per_proto::proto_process_up, &m_protos_up[i]) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
@@ -31,6 +32,7 @@ per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
 		}
 		pthread_mutex_init(&m_protos_down[i].write_pipe_mtx, NULL);
 		m_protos_down[i].proto_id = i+1;
+		m_protos_down[i].netstack = m_protos_down;;
 		while(m_pool->dispatch_thread(per_proto::proto_process_down, &m_protos_down[i]) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
@@ -52,15 +54,22 @@ per_proto::~per_proto() {
 }
 
 void per_proto::send(proto_id_t proto_id, net02::message *msg) {
-	int status;
-
+	assert(proto_id > 0);
+	assert(proto_id < PI_NUM_PROTOS);
+	
 	NET03_LOG("send %d byte message over protocol %s\n", msg->len(), net03::proto_id_to_name[proto_id]);
 
+	send_on_pipe(m_protos_down[proto_id-1].write_pipe, &m_protos_down[proto_id-1].write_pipe_mtx, 0, msg);	
+}
+
+void per_proto::send_on_pipe(int pipe, pthread_mutex_t* pipe_mtx, proto_id_t hlp, net02::message *msg) {
+	int status;
+	
 	while(1) {
-		if( (status = pthread_mutex_trylock(&m_protos_down[proto_id-1].write_pipe_mtx) ) == 0) {
-			ipc_msg_t m = {proto_id, msg};
-			write(m_protos_down[proto_id-1].write_pipe, &m, sizeof(ipc_msg_t) );
-			if(pthread_mutex_unlock(&m_protos_down[proto_id-1].write_pipe_mtx) != 0) {
+		if( (status = pthread_mutex_trylock(pipe_mtx) ) == 0) {
+			ipc_msg_t m = {hlp, msg};
+			write(pipe, &m, sizeof(ipc_msg_t) );
+			if(pthread_mutex_unlock(pipe_mtx) != 0) {
 				FATAL(NULL);
 			}
 			break;
@@ -97,12 +106,19 @@ void per_proto::proto_process_down(void *p_desc) {
 	sprintf(prefix, "process_down(%d) %s", id, name);
 	NET03_LOG("%s: enter\n", prefix);
 
-	while(1) {
-		NET03_LOG("%s: block on read\n", prefix);
+	net03::set_nonblocking(pd->read_pipe);
 
+	NET03_LOG("%s: enter read loop\n", prefix);
+	while(1) {		
 		amt_read = read(pd->read_pipe, &new_msg, sizeof(ipc_msg_t) );
+
 		if(amt_read != sizeof(ipc_msg_t) ) {
 			if(amt_read < 0) {
+				if(errno == EAGAIN) {
+					usleep(1000);
+					continue; /* try again */
+				}
+				
 				sprintf(err, "%s: read_pipe error", prefix);
 			}
 			else {
@@ -111,10 +127,21 @@ void per_proto::proto_process_down(void *p_desc) {
 			FATAL(err);
 		}
 		
-		NET03_LOG("%s: read one ipc msg\n", prefix);
-	}
-	//net03::add_proto_header(proto_id, PI_ID_NONE, msg);
-	sleep(1);
+		/* if we get here we got a message from above */
+		
+		NET03_LOG("%s: read one msg from hlp %s (%d)\n", prefix, net03::proto_id_to_name[new_msg.hlp], new_msg.hlp);
+		net03::add_proto_header(id, new_msg.hlp, new_msg.msg);
+		
+		if(id == 1) { /* this level is the "hardware" level; send over virtual network */
+			NET03_LOG("send %d byte message over the virtual network \n", new_msg.msg->len() );
+		} 
+		else { /* send this down to the next lower level */
+			proto_id_t llp = proto_id_to_llp_id[id];
+			assert(llp > 0); assert(llp < PI_NUM_PROTOS);
 
+			send_on_pipe(pd->netstack[llp-1].write_pipe, &pd->netstack[llp-1].write_pipe_mtx, id, new_msg.msg);
+		}
+	}
+	
 	NET03_LOG("process_down(%d) %s: exit\n", id, name);
 }

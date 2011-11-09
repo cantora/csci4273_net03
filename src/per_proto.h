@@ -6,7 +6,7 @@ extern "C" {
 #include <stdint.h>
 }
 
-#include "proto_info.h"
+#include "proto.h"
 #include "thread_pool.h"
 #include "message.h"
 
@@ -21,10 +21,14 @@ class per_proto {
 		
 	private:
 	
+		static void send_on_pipe(int pipe, pthread_mutex_t* pipe_mtx, proto_id_t hlp, net02::message *msg);
+
 		struct proto_desc_t {
 			pthread_mutex_t write_pipe_mtx;
 			proto_id_t proto_id;
-		
+
+			proto_desc_t* netstack; /* a reference to the array of protocols */
+
 			/* ordering is important here. pipe(&struct.read_pipe) <= pipe(int fildes[2]); */
 			int read_pipe; /* fildes[0] */
 			int write_pipe; /* fildes[1] */		

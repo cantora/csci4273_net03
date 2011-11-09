@@ -20,5 +20,7 @@ int main() {
 	sleep(2);
 
 	pp.send(PI_ID_FTP, &m);
+
+	sleep(1);
 	return 0;
 }
