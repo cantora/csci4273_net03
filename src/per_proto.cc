@@ -63,12 +63,16 @@ void per_proto::send(proto_id_t proto_id, net02::message *msg) {
 }
 
 void per_proto::send_on_pipe(int pipe, pthread_mutex_t* pipe_mtx, proto_id_t hlp, net02::message *msg) {
-	int status;
+	int status, written;
 	
 	while(1) {
 		if( (status = pthread_mutex_trylock(pipe_mtx) ) == 0) {
 			ipc_msg_t m = {hlp, msg};
-			write(pipe, &m, sizeof(ipc_msg_t) );
+
+			if( (written = write(pipe, &m, sizeof(ipc_msg_t) ) ) != sizeof(ipc_msg_t) ) {
+				FATAL(NULL);
+			}
+
 			if(pthread_mutex_unlock(pipe_mtx) != 0) {
 				FATAL(NULL);
 			}
