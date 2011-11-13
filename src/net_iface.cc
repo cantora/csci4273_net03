@@ -1,14 +1,23 @@
 #include "net_iface.h"
+#include "net03_common.h"
 
-net_iface::net_iface(int udp_socket, struct sockaddr_in sin, void (*recv_fn)(void *), void *recv_args) 
-	: m_socket(udp_socket), m_sin(sin), m_recv_fn(recv_fn), m_recv_args(recv_args) {
+extern "C" {
+#include <errno.h>
+}
+
+using namespace net03;
+
+net_iface::net_iface(int udp_socket, struct sockaddr_in sin, net02::thread_pool *pool, void (*recv_fn)(void *), void *recv_args) 
+	: m_socket(udp_socket), m_sin(sin), m_pool(pool), m_recv_fn(recv_fn), m_recv_args(recv_args) {
 
 	pthread_mutex_init(&m_socket_mtx, NULL);
 	
 	net03::set_nonblocking(m_socket);
 
-	while(m_pool->dispatch_thread(recv_loop, this) < 0) {
-		usleep(10000); /* 0.01 secs */
+	NET03_LOG("start recv_loop thread\n");
+	
+	while(m_pool->dispatch_thread(net_iface::recv_loop, this, NULL) < 0) {
+		usleep(10000);
 	}
 }
 
@@ -34,7 +43,7 @@ void net_iface::transfer(net02::message *msg) const {
 
 	NET03_LOG("send %d byte message on network iface\n", msg_len );
 	while(1) {
-		if( (status = pthread_mutex_trylock(m_socket_mtx) ) == 0) {
+		if( (status = pthread_mutex_trylock(&m_socket_mtx) ) == 0) {
 			sent = sendto(m_socket, flat_msg, msg_len, 0, (const sockaddr *) &m_sin, sizeof(m_sin) );
 
 			if(sent != msg_len ) {
@@ -44,7 +53,7 @@ void net_iface::transfer(net02::message *msg) const {
 				FATAL(NULL);
 			}
 
-			if(pthread_mutex_unlock(m_socket_mtx) != 0) {
+			if(pthread_mutex_unlock(&m_socket_mtx) != 0) {
 				FATAL(NULL);
 			}
 			break;
@@ -66,31 +75,39 @@ void net_iface::recv_loop(void *this_ptr) {
 	net_iface *instance = (net_iface *) this_ptr;
 	int msg_len, status, bufsize;
 	socklen_t sinlen;
-	recv_fn_arg_t for_recv_fn;
+	recv_fn_arg_t *for_recv_fn;
 	char *buf;
 	
+	NET03_LOG("net_iface (listen): start recv loop\n");
+
 	bufsize = 1024;
 	buf = new char[bufsize];
 	
 	while(1) {
 		sinlen = sizeof(instance->m_sin);
 
-		if( (status = pthread_mutex_trylock(m_socket_mtx) ) == 0) {
+		if( (status = pthread_mutex_trylock(&instance->m_socket_mtx) ) == 0) {
 			if( (msg_len = recvfrom(instance->m_socket, buf, bufsize, 0, (sockaddr *)& instance->m_sin, &sinlen)) < 1) {
 				if(errno != EAGAIN) {
 					FATAL(NULL);	
 				}
 			}			
 
-			if(pthread_mutex_unlock(m_socket_mtx) != 0) {
+			if(pthread_mutex_unlock(&instance->m_socket_mtx) != 0) {
 				FATAL(NULL);
 			}
 
 			if(msg_len > 0) {
-				for_recv_fn.msg = new net02::message(buf, msg_len);
-				for_recv_fn.args = instance->m_recv_args;
+				NET03_LOG("net_iface (listen): received %d byte message\n", msg_len);
 
-				while(m_pool->dispatch_thread(instance->m_recv_fn, ) < 0) {
+				/* this gets deleted by the thread cleanup function */
+				for_recv_fn = new recv_fn_arg_t; 
+
+				/* this gets deleted by the guy who receives this message */
+				for_recv_fn->msg = new net02::message(buf, msg_len); 
+				for_recv_fn->args = instance->m_recv_args;
+
+				while(instance->m_pool->dispatch_thread(instance->m_recv_fn, for_recv_fn, net_iface::recv_msg_fn_at_exit) < 0) {
 					usleep(10000); /* 0.01 secs */
 				}
 
@@ -105,4 +122,11 @@ void net_iface::recv_loop(void *this_ptr) {
 		usleep(10000);
 	}	
 
+}
+
+void net_iface::recv_msg_fn_at_exit(void *thread_data) {
+
+	NET03_LOG("message cleanup\n");
+
+	delete thread_data;
 }

@@ -4,6 +4,10 @@
 extern "C" {
 #include <pthread.h>
 #include <stdint.h>
+#include <sys/types.h> 
+#include <sys/socket.h> 
+#include <netinet/in.h> 
+#include <netdb.h> 
 }
 
 #include "thread_pool.h"
@@ -14,7 +18,7 @@ namespace net03 {
 /* thread safe wrapper for a virtual hardware layer */
 class net_iface {
 	public:
-		net_iface(int udp_socket, struct sockaddr_in sin, net02::thread_pool *pool, void (*recv_fn)(void *), recv_fn_arg_t *recv_args);
+		net_iface(int udp_socket, struct sockaddr_in sin, net02::thread_pool *pool, void (*recv_fn)(void *), void *recv_args);
 		~net_iface();
 		
 		void transfer(net02::message *msg) const;
@@ -22,10 +26,11 @@ class net_iface {
 		struct recv_fn_arg_t {
 			net02::message *msg;
 			void *args;
-		}
+		};
 		
-	private:		
+	private:
 		static void recv_loop(void *this_ptr);
+		static void recv_msg_fn_at_exit(void *thread_data);
 
 		const int m_socket;
 		const struct sockaddr_in m_sin;
@@ -33,9 +38,9 @@ class net_iface {
 
 		net02::thread_pool *m_pool;
 		void (*m_recv_fn)(void *);
-		recv_fn_arg_t *m_recv_args;
+		void *m_recv_args;
 				
-}; /* per_proto */
+}; /* net_iface */
 
 }; /* net02 */
 #endif /* NET_IFACE_H */

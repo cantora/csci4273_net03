@@ -1,8 +1,8 @@
 .SECONDARY:
 
 DEFINES 		= -DNET03_DEBUG_LOG
-#DEFINES			+= -DNET02_DEBUG_LOG 
-INCLUDES 		+= -iquote"./src" -iquote"./net02" 
+DEFINES			+= -DNET02_DEBUG_LOG 
+INCLUDES 		+= -iquote"./src" -iquote"./net02" -iquote"./net01" 
 DBG			= -g
 #OPTIMIZE		= -Os
 C_FLAGS 		= -Wall -Wextra $(OPTIMIZE) $(DBG) -w $(DEFINES) $(INCLUDES) -pthread
@@ -13,7 +13,7 @@ CXX_CMD			= g++ $(CXX_FLAGS)
 
 BUILD 			= ./build
 
-OBJECTS 		:= $(patsubst %.cc, $(BUILD)/%.o, $(notdir $(wildcard ./src/*.cc) ) ) $(patsubst %.cc, $(BUILD)/%.o, $(notdir $(wildcard ./net02/*.cc) ) )
+OBJECTS 		:= $(patsubst %.cc, $(BUILD)/%.o, $(notdir $(wildcard ./src/*.cc) ) ) $(patsubst %.cc, $(BUILD)/%.o, $(notdir $(wildcard ./net02/*.cc) ) ) $(patsubst %.cc, $(BUILD)/%.o, $(notdir $(wildcard ./net01/*.cc) ) )
 
 DEPENDS			:= $(OBJECTS:.o=.d) 
 DEPSDIR			= $(BUILD)
@@ -31,6 +31,9 @@ $(BUILD)/%.o: src/%.cc src/%.h ./Makefile
 	$(CXX_CMD) $(DEP_FLAGS) -c $< -o $@
 
 $(BUILD)/%.o: net02/%.cc net02/%.h ./Makefile
+	$(CXX_CMD) $(DEP_FLAGS) -c $< -o $@
+
+$(BUILD)/%.o: net01/%.cc net01/%.h ./Makefile
 	$(CXX_CMD) $(DEP_FLAGS) -c $< -o $@
 
 $(BUILD)/test/%.o: test/%.cc $(OBJECTS)

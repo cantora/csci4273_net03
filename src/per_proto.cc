@@ -23,7 +23,7 @@ per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
 		pthread_mutex_init(&m_protos_up[i].write_pipe_mtx, NULL);
 		m_protos_up[i].proto_id = i+1;
 		m_protos_up[i].netstack = m_protos_up;
-		while(m_pool->dispatch_thread(per_proto::proto_process_up, &m_protos_up[i]) < 0) {
+		while(m_pool->dispatch_thread(per_proto::proto_process_up, &m_protos_up[i], NULL) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
 		
@@ -33,7 +33,7 @@ per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
 		pthread_mutex_init(&m_protos_down[i].write_pipe_mtx, NULL);
 		m_protos_down[i].proto_id = i+1;
 		m_protos_down[i].netstack = m_protos_down;;
-		while(m_pool->dispatch_thread(per_proto::proto_process_down, &m_protos_down[i]) < 0) {
+		while(m_pool->dispatch_thread(per_proto::proto_process_down, &m_protos_down[i], NULL) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
 
