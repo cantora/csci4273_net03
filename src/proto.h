@@ -29,7 +29,7 @@ namespace net03 {
 
 	void add_proto_header(proto_id_t proto_id, proto_id_t hlp, net02::message* msg);
 	proto_id_t strip_proto_header(proto_id_t proto_id, net02::message* msg);
-	
+
 }
 
 #endif /* PROTO_H */

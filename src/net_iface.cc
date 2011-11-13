@@ -10,7 +10,7 @@ using namespace net03;
 net_iface::net_iface(int send_udp_socket, struct sockaddr_in send_sin, int recv_udp_socket, net02::thread_pool *pool, void (*recv_fn)(void *), void *recv_args) 
 	: m_send_socket(send_udp_socket), m_sin(send_sin), m_recv_socket(recv_udp_socket), m_pool(pool), m_recv_fn(recv_fn), m_recv_args(recv_args) {
 
-	//pthread_mutex_init(&m_socket_mtx, NULL);
+	pthread_mutex_init(&m_send_socket_mtx, NULL);
 	
 	net03::set_nonblocking(m_recv_socket);
 
@@ -22,7 +22,7 @@ net_iface::net_iface(int send_udp_socket, struct sockaddr_in send_sin, int recv_
 }
 
 net_iface::~net_iface() {
-	//pthread_mutex_destroy(&m_socket_mtx);
+	pthread_mutex_destroy(&m_send_socket_mtx);
 	close(m_send_socket);
 	close(m_recv_socket);
 }
@@ -43,7 +43,21 @@ void net_iface::transfer(net02::message *msg) const {
 	msg->flatten(flat_msg);
 
 	NET03_LOG("send %d byte message on network iface\n", msg_len );
-	sent = sendto(m_send_socket, flat_msg, msg_len, 0, (const sockaddr *) &m_sin, sizeof(m_sin) );
+	while(1) {
+		if( (status = pthread_mutex_trylock(&m_send_socket_mtx) ) == 0) {
+			sent = sendto(m_send_socket, flat_msg, msg_len, 0, (const sockaddr *) &m_sin, sizeof(m_sin) );
+	
+			if(pthread_mutex_unlock(&m_send_socket_mtx) != 0) {
+				FATAL(NULL);
+			}
+			break;
+		}
+		else if(status != EBUSY) {
+			FATAL(NULL);
+		} /* trylock */
+		
+		usleep(10000);
+	} /* while(1) */
 
 	if(sent != msg_len ) {
 		if( sent > 0) {

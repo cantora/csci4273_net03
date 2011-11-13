@@ -143,51 +143,39 @@ void per_proto::proto_process(void *p_desc) {
 	assert(false); /* shouldnt get here */
 }
 
-void per_proto::print_msg(net02::message *msg) {
-	char buf[2048];
-	int len;
-	
-	len = msg->len();
-	assert(len < 2048);
-
-	msg->flatten(buf);
-	buf[len] = 0x00;
-
-	printf("application message received: '%s'\n", buf);	
-}
-
 void per_proto::proto_process_up(proto_desc_t *pd, ipc_msg_t &new_msg) {
-		proto_id_t dmux_id;
-		
-		dmux_id = net03::strip_proto_header(pd->proto_id, new_msg.msg);
+	proto_id_t dmux_id;
+	
+	dmux_id = net03::strip_proto_header(pd->proto_id, new_msg.msg);
 
-		if(dmux_id == 0) { /* this level is the "application" level; just print the msg */
-			print_msg(new_msg.msg);
-			delete new_msg.msg; /* message is no longer needed after this */
-		} 
-		else if(dmux_id > 0 && dmux_id <= PI_NUM_PROTOS) { /* send this down to the next lower level */
+	if(dmux_id == PI_ID_NONE) { /* this level is the "application" level; just print the msg */
+		print_msg(new_msg.msg);
+		delete new_msg.msg; /* message is no longer needed after this */
+	} 
+	else if(dmux_id > 0 && dmux_id <= PI_NUM_PROTOS) { /* send this down to the next lower level */
 
-			send_on_pipe(pd->netstack[dmux_id-1].write_pipe, &pd->netstack[dmux_id-1].write_pipe_mtx, pd->proto_id, new_msg.msg);
-		}
-		else {
-			FATAL(NULL);
-		}
+		send_on_pipe(pd->netstack[dmux_id-1].write_pipe, &pd->netstack[dmux_id-1].write_pipe_mtx, pd->proto_id, new_msg.msg);
+	}
+	else {
+		FATAL(NULL);
+	}
 }
 
 void per_proto::proto_process_down(proto_desc_t *pd, ipc_msg_t &new_msg) {
-	
-		net03::add_proto_header(pd->proto_id, new_msg.hlp, new_msg.msg);
-		
-		if(pd->proto_id == 1) { /* this level is the "hardware" level; send over virtual network */
-			pd->ifc->transfer(new_msg.msg);
-			delete new_msg.msg; /* message is no longer needed after this */
-		} 
-		else { /* send this down to the next lower level */
-			proto_id_t llp = proto_id_to_llp_id[pd->proto_id];
-			assert(llp > 0); assert(llp < PI_NUM_PROTOS);
 
-			send_on_pipe(pd->netstack[llp-1].write_pipe, &pd->netstack[llp-1].write_pipe_mtx, pd->proto_id, new_msg.msg);
-		}
+	net03::add_proto_header(pd->proto_id, new_msg.hlp, new_msg.msg);
+	
+	if(pd->proto_id == PI_ID_ETH) { /* this level is the "hardware" level; send over virtual network */
+		pd->ifc->transfer(new_msg.msg);
+		/* whoever passed this to per_proto should delete this */
+		//delete new_msg.msg; /* message is no longer needed after this */
+	} 
+	else { /* send this down to the next lower level */
+		proto_id_t llp = proto_id_to_llp_id[pd->proto_id];
+		assert(llp > 0); assert(llp < PI_NUM_PROTOS);
+
+		send_on_pipe(pd->netstack[llp-1].write_pipe, &pd->netstack[llp-1].write_pipe_mtx, pd->proto_id, new_msg.msg);
+	}
 }
 
 void per_proto::recv_from_ifc(void *recv_data) {

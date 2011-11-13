@@ -100,3 +100,10 @@ void per_proto::proto_process_down(void *p_desc) {
 	
 	assert(false); /* shouldnt get here */
 }
+
+
+struct outgoing_t {
+			net02::message *msg;
+			proto_id_t (**proto_fns)(proto_id_t hlp, net02::message *msg);
+			proto_id_t id;			
+		};

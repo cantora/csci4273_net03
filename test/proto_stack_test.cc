@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "per_proto.h"
+#include "per_message.h"
 #include "sock.h"
 #include "net03_common.h"
 
@@ -19,16 +20,10 @@ const char* msgs[] = {
 	" she knows what polarization state to set on her classical light pulse in order to fake Bob into recording the same measurement result. When Bob and Alice compare notes, they get the right answers and assume everything is on the up and up. ",
 	" The researchers demonstrated that this attack succeeds with standard (but not commercial) quantum cryptography equipment under a range of different circumstances. In fact, they could make the setup outperform the quantum implementation for some particular settings." };
 
-int main() {
-	struct sockaddr_in sin;
-	socklen_t sinlen = sizeof(sin);
-	sock::host_sin("localhost", 3456, &sin);
-	int recv_socket = sock::bound_udp_sock(&sin, &sinlen);  
-	int send_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+int test_proto_stack(proto_stack *ps) {
 	int i;
 	message *msg;
-
-	per_proto pp(send_socket, sin, recv_socket);
 
 	sleep(4);
 	cout << "test per_proto" << endl;
@@ -39,7 +34,8 @@ int main() {
 		cout.flush();
 	}
 
-	for(i = 0; i < (sizeof(msgs)/4); i++) {
+	//for(i = 0; i < (sizeof(msgs)/4); i++) {
+	for(i = 0; i < 1; i++) {
 		int len = strlen(msgs[i]);
 		char *buf = new char[len]; /* gets deleted by message */
 		memcpy(buf, msgs[i], len); 
@@ -47,9 +43,28 @@ int main() {
 		cout << "send msg " << i+1 << endl;
 		msg = new message(buf, len); /* gets deleted by eth proto */
 		
-		pp.send(PI_ID_FTP, msg);
+		ps->send(PI_ID_FTP, msg);
 	}
 
 	sleep(1);
 	return 0;
+}
+
+int main() {
+	struct sockaddr_in sin;
+	socklen_t sinlen = sizeof(sin);
+	sock::host_sin("localhost", 3456, &sin);
+	int recv_socket = sock::bound_udp_sock(&sin, &sinlen);  
+	int send_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	proto_stack *ps;
+
+#if 0
+	per_proto pp(send_socket, sin, recv_socket);
+	ps = &pp;
+#else
+	per_message pm(send_socket, sin, recv_socket);
+	ps = &pm;
+#endif
+	
+	test_proto_stack(ps);	
 }

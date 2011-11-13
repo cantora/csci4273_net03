@@ -37,7 +37,7 @@ class net_iface {
 		const int m_send_socket;
 		const int m_recv_socket;
 		const struct sockaddr_in m_sin;
-		//mutable pthread_mutex_t m_socket_mtx;
+		mutable pthread_mutex_t m_send_socket_mtx;
 
 		net02::thread_pool *m_pool;
 		void (*m_recv_fn)(void *);

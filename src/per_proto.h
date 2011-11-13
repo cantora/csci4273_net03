@@ -10,10 +10,11 @@ extern "C" {
 #include "thread_pool.h"
 #include "message.h"
 #include "net_iface.h"
+#include "proto_stack.h"
 
 namespace net03 {
 
-class per_proto {
+class per_proto : public proto_stack {
 	public:
 		per_proto(int send_socket, struct sockaddr_in sin, int recv_socket);
 		~per_proto();
@@ -24,7 +25,6 @@ class per_proto {
 	
 		static void send_on_pipe(int pipe, pthread_mutex_t* pipe_mtx, proto_id_t hlp, net02::message *msg);
 		static void recv_from_ifc(void *recv_data);
-		static void print_msg(net02::message *msg);
 			
 		enum proto_desc_type_t {PDESC_UP, PDESC_DOWN};
 		static const char *PDESC_UP_STR;
