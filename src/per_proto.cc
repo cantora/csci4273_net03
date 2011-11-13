@@ -12,7 +12,10 @@ extern "C" {
 using namespace std;
 using namespace net03;
 
-per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
+const char *per_proto::PDESC_UP_STR = "up";
+const char *per_proto::PDESC_DOWN_STR = "down";
+
+per_proto::per_proto(int send_socket, struct sockaddr_in sin, int recv_socket) : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2 + 10)), m_ifc(send_socket, sin, recv_socket, m_pool, per_proto::recv_from_ifc, &m_protos_up[PI_ID_ETH-1]) {
 	assert(m_pool != NULL);
 
 	for(int i = 0; i < PI_NUM_PROTOS; i++) {
@@ -22,8 +25,10 @@ per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
 		}
 		pthread_mutex_init(&m_protos_up[i].write_pipe_mtx, NULL);
 		m_protos_up[i].proto_id = i+1;
+		m_protos_up[i].type = PDESC_UP;
+		m_protos_up[i].ifc = &m_ifc;
 		m_protos_up[i].netstack = m_protos_up;
-		while(m_pool->dispatch_thread(per_proto::proto_process_up, &m_protos_up[i], NULL) < 0) {
+		while(m_pool->dispatch_thread(per_proto::proto_process, &m_protos_up[i], NULL) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
 		
@@ -32,8 +37,10 @@ per_proto::per_proto() : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2)) {
 		}
 		pthread_mutex_init(&m_protos_down[i].write_pipe_mtx, NULL);
 		m_protos_down[i].proto_id = i+1;
+		m_protos_down[i].type = PDESC_DOWN;
+		m_protos_down[i].ifc = &m_ifc;
 		m_protos_down[i].netstack = m_protos_down;;
-		while(m_pool->dispatch_thread(per_proto::proto_process_down, &m_protos_down[i], NULL) < 0) {
+		while(m_pool->dispatch_thread(per_proto::proto_process, &m_protos_down[i], NULL) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
 
@@ -86,28 +93,17 @@ void per_proto::send_on_pipe(int pipe, pthread_mutex_t* pipe_mtx, proto_id_t hlp
 	}
 }
 
-void per_proto::proto_process_up(void *p_desc) {
+void per_proto::proto_process(void *p_desc) {
 	proto_desc_t *pd = (proto_desc_t *) p_desc;
-	int id = pd->proto_id;
-	const char *name = net03::proto_id_to_name[id];
-
-	NET03_LOG("process_up(%d) %s: enter\n", id, name);
-
-	sleep(1);
-
-	NET03_LOG("process_up(%d) %s: exit\n", id, name);
-}
-
-void per_proto::proto_process_down(void *p_desc) {
-	proto_desc_t *pd = (proto_desc_t *) p_desc;
-	int id = pd->proto_id;
-	const char *name = net03::proto_id_to_name[id];
+	const char *name = net03::proto_id_to_name[pd->proto_id];
+	const char *type_name;
 	ipc_msg_t new_msg;
 	int amt_read;
 	char err[64];
 	char prefix[32];
 	
-	sprintf(prefix, "process_down(%d) %s", id, name);
+	type_name = (pd->type == PDESC_UP)? PDESC_UP_STR : PDESC_DOWN_STR;
+	sprintf(prefix, "process_%s(%d) %s", type_name, pd->proto_id, name);
 	NET03_LOG("%s: enter\n", prefix);
 
 	net03::set_nonblocking(pd->read_pipe);
@@ -131,21 +127,78 @@ void per_proto::proto_process_down(void *p_desc) {
 			FATAL(err);
 		}
 		
-		/* if we get here we got a message from above */
+		/* if we get here we got a message from above or below */
 		
-		NET03_LOG("%s: read one msg from hlp %s (%d)\n", prefix, net03::proto_id_to_name[new_msg.hlp], new_msg.hlp);
-		net03::add_proto_header(id, new_msg.hlp, new_msg.msg);
-		
-		if(id == 1) { /* this level is the "hardware" level; send over virtual network */
-			NET03_LOG("send %d byte message over the virtual network \n", new_msg.msg->len() );
-		} 
-		else { /* send this down to the next lower level */
-			proto_id_t llp = proto_id_to_llp_id[id];
-			assert(llp > 0); assert(llp < PI_NUM_PROTOS);
-
-			send_on_pipe(pd->netstack[llp-1].write_pipe, &pd->netstack[llp-1].write_pipe_mtx, id, new_msg.msg);
-		}
+		if(pd->type == PDESC_DOWN) {
+			NET03_LOG("%s: read one msg from hlp %s (%d)\n", prefix, net03::proto_id_to_name[new_msg.hlp], new_msg.hlp);
+			proto_process_down(pd, new_msg);
+		} else { /* up */
+			proto_id_t llp = proto_id_to_llp_id[pd->proto_id];
+			NET03_LOG("%s: read one msg from llp %s (%d)\n", prefix, net03::proto_id_to_name[llp], llp);
+			
+			proto_process_up(pd, new_msg);			
+		}		
 	}
 	
-	NET03_LOG("process_down(%d) %s: exit\n", id, name);
+	assert(false); /* shouldnt get here */
+}
+
+void per_proto::print_msg(net02::message *msg) {
+	char buf[2048];
+	int len;
+	
+	len = msg->len();
+	assert(len < 2048);
+
+	msg->flatten(buf);
+	buf[len] = 0x00;
+
+	printf("application message received: '%s'\n", buf);	
+}
+
+void per_proto::proto_process_up(proto_desc_t *pd, ipc_msg_t &new_msg) {
+		proto_id_t dmux_id;
+		
+		dmux_id = net03::strip_proto_header(pd->proto_id, new_msg.msg);
+
+		if(dmux_id == 0) { /* this level is the "application" level; just print the msg */
+			print_msg(new_msg.msg);
+			delete new_msg.msg; /* message is no longer needed after this */
+		} 
+		else if(dmux_id > 0 && dmux_id <= PI_NUM_PROTOS) { /* send this down to the next lower level */
+
+			send_on_pipe(pd->netstack[dmux_id-1].write_pipe, &pd->netstack[dmux_id-1].write_pipe_mtx, pd->proto_id, new_msg.msg);
+		}
+		else {
+			FATAL(NULL);
+		}
+}
+
+void per_proto::proto_process_down(proto_desc_t *pd, ipc_msg_t &new_msg) {
+	
+		net03::add_proto_header(pd->proto_id, new_msg.hlp, new_msg.msg);
+		
+		if(pd->proto_id == 1) { /* this level is the "hardware" level; send over virtual network */
+			pd->ifc->transfer(new_msg.msg);
+			delete new_msg.msg; /* message is no longer needed after this */
+		} 
+		else { /* send this down to the next lower level */
+			proto_id_t llp = proto_id_to_llp_id[pd->proto_id];
+			assert(llp > 0); assert(llp < PI_NUM_PROTOS);
+
+			send_on_pipe(pd->netstack[llp-1].write_pipe, &pd->netstack[llp-1].write_pipe_mtx, pd->proto_id, new_msg.msg);
+		}
+}
+
+void per_proto::recv_from_ifc(void *recv_data) {
+	net_iface::recv_fn_arg_t *data = (net_iface::recv_fn_arg_t *) recv_data;
+	int len;
+	proto_desc_t *hw_proto = (proto_desc_t *) data->args;
+
+	len = data->msg->len();
+	assert(len < net_iface::MAX_UDP_MSG_LEN);
+
+	NET03_LOG("pass %d byte message from vn to eth proto\n", len);
+
+	send_on_pipe(hw_proto->write_pipe, &hw_proto->write_pipe_mtx, 0, data->msg);
 }

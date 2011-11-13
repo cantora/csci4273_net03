@@ -27,8 +27,9 @@ void recv(void *recv_data) {
 	data->msg->flatten(buf);
 	buf[data->msg->len()] = 0x00;
 
-	cout << "received message: " << buf << endl;
+	printf("received message: %s\n", buf);
 
+	delete data->msg;
 }
 
 int main() {
@@ -36,30 +37,34 @@ int main() {
 	struct sockaddr_in sin;
 	socklen_t sinlen = sizeof(sin);
 	sock::host_sin("localhost", 3456, &sin);
-	int socket = sock::bound_udp_sock(&sin, &sinlen);  
+	int recv_socket = sock::bound_udp_sock(&sin, &sinlen);  
+	int send_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	net_iface *ifc;
 	int sent,i;
+	message *msg;
 
-	
+	assert(recv_socket > 0);
+	assert(send_socket > 0);
 	//msgs[0] = new char[sizeof(msg1)];
 	//memcpy(msgs[0], msg1, sizeof(msg1));
 	//message m(msgs[0], sizeof(msg1));
 	
-
 	cout << "test net_iface" << endl;
 
 	sleep(1);
-	ifc = new net_iface(socket, sin, &tp, recv, NULL);
+	ifc = new net_iface(send_socket, sin, recv_socket, &tp, recv, NULL);
 	
 	for(i = 0; i < (sizeof(msgs)/4); i++) {
-		cout << "send msg " << i+1 << endl;
 		int len = strlen(msgs[i]);
-		if( (sent = sendto(socket, msgs[i], len, 0, (const sockaddr *) &sin, sinlen ) ) < 0) {
-			FATAL(NULL);
-		}
-		assert(sent == len);
-	}
+		char *buf = new char[len];
+		memcpy(buf, msgs[i], len);
+		
+		cout << "send msg " << i+1 << endl;
+		msg = new message(buf, len);
 
+		ifc->transfer(msg);
+		delete msg;
+	}
 
 	sleep(5);
 	return 0;

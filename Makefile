@@ -1,7 +1,7 @@
 .SECONDARY:
 
 DEFINES 		= -DNET03_DEBUG_LOG
-DEFINES			+= -DNET02_DEBUG_LOG 
+#DEFINES			+= -DNET02_DEBUG_LOG 
 INCLUDES 		+= -iquote"./src" -iquote"./net02" -iquote"./net01" 
 DBG			= -g
 #OPTIMIZE		= -Os

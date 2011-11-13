@@ -42,3 +42,61 @@ bool up_dead[PI_NUM_PROTOS]
 				break;
 		}	
 	}
+
+
+
+
+
+void per_proto::proto_process_down(void *p_desc) {
+	proto_desc_t *pd = (proto_desc_t *) p_desc;
+	int id = pd->proto_id;
+	const char *name = net03::proto_id_to_name[id];
+	ipc_msg_t new_msg;
+	int amt_read;
+	char err[64];
+	char prefix[32];
+	
+	sprintf(prefix, "process_down(%d) %s", id, name);
+	NET03_LOG("%s: enter\n", prefix);
+
+	net03::set_nonblocking(pd->read_pipe);
+
+	NET03_LOG("%s: enter read loop\n", prefix);
+	while(1) {		
+		amt_read = read(pd->read_pipe, &new_msg, sizeof(ipc_msg_t) );
+
+		if(amt_read != sizeof(ipc_msg_t) ) {
+			if(amt_read < 0) {
+				if(errno == EAGAIN) {
+					usleep(1000);
+					continue; /* try again */
+				}
+				
+				sprintf(err, "%s: read_pipe error", prefix);
+			}
+			else {
+				sprintf(err, "%s: only read %d bytes", prefix, amt_read);
+			}
+			FATAL(err);
+		}
+		
+		/* if we get here we got a message from above */
+		
+		NET03_LOG("%s: read one msg from hlp %s (%d)\n", prefix, net03::proto_id_to_name[new_msg.hlp], new_msg.hlp);
+		net03::add_proto_header(id, new_msg.hlp, new_msg.msg);
+		
+		if(id == 1) { /* this level is the "hardware" level; send over virtual network */
+			//NET03_LOG("send %d byte message over the virtual network \n", new_msg.msg->len() );
+			pd->ifc->transfer(new_msg.msg);
+			delete new_msg.msg;
+		} 
+		else { /* send this down to the next lower level */
+			proto_id_t llp = proto_id_to_llp_id[id];
+			assert(llp > 0); assert(llp < PI_NUM_PROTOS);
+
+			send_on_pipe(pd->netstack[llp-1].write_pipe, &pd->netstack[llp-1].write_pipe_mtx, id, new_msg.msg);
+		}
+	}
+	
+	assert(false); /* shouldnt get here */
+}
