@@ -62,7 +62,7 @@ void net_iface::transfer(net02::message *msg) const {
 			FATAL(NULL);
 		} /* trylock */
 		
-		usleep(10000);
+		usleep(100);
 	} /* while(1) */
 
 	if(sent != msg_len ) {
@@ -108,7 +108,7 @@ void net_iface::recv_loop(void *this_ptr) {
 			for_recv_fn->args = instance->m_recv_args;
 		
 			while(instance->m_pool->dispatch_thread(instance->m_recv_fn, 
-						for_recv_fn, NULL /*net_iface::recv_msg_fn_at_exit*/) < 0) {
+						for_recv_fn, net_iface::recv_msg_fn_at_exit) < 0) {
 				usleep(100);
 			}
 			NET03_LOG("net_iface (listen): dispatched thread\n");

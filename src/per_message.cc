@@ -46,7 +46,7 @@ PROTO_UP_FN_DEF(1)
 	m_proto_up[ID-1] = PROTO_UP_FN(ID);
 
 
-per_message::per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(100 + 1)), m_ifc(send_socket, sin, recv_socket, m_pool, per_message::recv_from_ifc, this) {
+per_message::per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(70 + 1)), m_ifc(send_socket, sin, recv_socket, m_pool, per_message::recv_from_ifc, this) {
 	int i;
 	assert(m_pool != NULL);
 
@@ -79,7 +79,7 @@ void per_message::send(proto_id_t proto_id, net02::message *msg) {
 	pmd->id = proto_id;
 	pmd->msg = msg;
 
-	
+	usleep(1000); /* somehow slowing down the rate of sending makes it faster? */	
 	while(m_pool->dispatch_thread(per_message::process_down, pmd, NULL) < 0) {
 		usleep(1000);
 	}	
