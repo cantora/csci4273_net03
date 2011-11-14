@@ -48,6 +48,7 @@ void net_iface::transfer(net02::message *msg) const {
 	NET03_LOG("send %d byte message on network iface\n", msg_len );
 	while(1) {
 		if( (status = pthread_mutex_trylock(&m_send_socket_mtx) ) == 0) {
+			usleep(10);
 			sent = sendto(m_send_socket, flat_msg, msg_len, 0, (const sockaddr *) &m_sin, sizeof(m_sin) );
 	
 			if(pthread_mutex_unlock(&m_send_socket_mtx) != 0) {

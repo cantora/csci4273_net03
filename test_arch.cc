@@ -7,6 +7,7 @@
 
 extern "C" {
 #include <semaphore.h>
+#include <sys/socket.h>
 }
 
 using namespace std;
@@ -95,6 +96,20 @@ void recv_message(void *on_msg_data) {
 	}
 }
 
+void echo_message(void *on_msg_data) {
+	proto_stack::on_msg_t *data = (proto_stack::on_msg_t *) on_msg_data;
+	proto_stack *ps = *( (proto_stack **)data->args); 
+	char *buf;
+	int len = data->msg->len();
+	
+	//printf("recd %s msg\n", proto_id_to_name[data->proto_id]);
+
+	buf = new char[len];
+	data->msg->flatten(buf);
+
+	ps->send(data->proto_id, new message(buf, len) );
+}
+
 int test_proto_stack(proto_stack *ps, proto_id_t app_proto) {
 	int i;
 	message *msg;
@@ -134,10 +149,12 @@ void arch_test_thread(void *arch_test) {
 
 const char pm_name[] = "per-message";
 const char pp_name[] = "per-protocol";
-const char usage[] = "usage: %s ARCH_TYPE PORT [HOST]\n\tARCH_TYPE := %s | %s\n\n";
+const char act_name[] = "active";
+const char echo_name[] = "echo";
+const char usage[] = "usage: %s ARCH_TYPE COMM_TYPE LISTEN_PORT HOST_PORT [HOST]\n\tARCH_TYPE := %s | %s\n\tCOMM_TYPE := %s | %s\n\n";
 	
 void usage_exit(const char *argv0) {
-	printf(usage, argv0, pm_name, pp_name);
+	printf(usage, argv0, pm_name, pp_name, act_name, echo_name);
 	exit(1);
 }
 
@@ -147,15 +164,17 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in bound_sin;
 	int recv_socket;
 	int send_socket;
-	short port;
+	short listen_port, host_port;
 	const char* host = "localhost";
 	proto_stack *ps;
 	thread_pool tp(4);
-	int arch_type,i;
+	int arch_type, comm_type, i;
 	arch_test_t tests[4];
-	proto_id_t test_ids[4] = {PI_ID_FTP, PI_ID_TEL, PI_ID_RDP, PI_ID_DNS };
+	proto_id_t test_ids[4] = {PI_ID_FTP, PI_ID_TEL, PI_ID_RDP, PI_ID_DNS};
+	void (*rec_msg_fn)(void *);
+	void *rec_msg_args;
 
-	if(argc < 3 || argc > 4) {
+	if(argc < 5 || argc > 6) {
 		usage_exit(argv[0]);
 	}
 	else {		
@@ -168,17 +187,46 @@ int main(int argc, char *argv[]) {
 		else {
 			usage_exit(argv[0]);
 		}
-		port = strtol(argv[2], NULL, 10);
+
+		if(strncmp(argv[2], act_name, sizeof(act_name) ) == 0) {
+			comm_type = 0;
+			rec_msg_fn = recv_message;
+			rec_msg_args = NULL;
+		}
+		else if(strncmp(argv[2], echo_name, sizeof(echo_name) ) == 0) {
+			comm_type = 1;
+			rec_msg_fn = echo_message;
+			rec_msg_args = &ps;
+		}
+		else {
+			usage_exit(argv[0]);
+		}
+
+		listen_port = strtol(argv[3], NULL, 10);
+		host_port = strtol(argv[4], NULL, 10);
 		
-		if(argc == 4) {
-			host = argv[3];
+		if(argc == 6) {
+			host = argv[5];
 		}
 	}
 
-	sock::host_sin(host, port, &sin);
-	sock::host_sin("localhost", port, &bound_sin);
-	recv_socket = sock::bound_udp_sock(&sin, &sinlen);
+	sock::host_sin(host, host_port, &sin);
+	sock::host_sin("localhost", listen_port, &bound_sin);
+	recv_socket = sock::bound_udp_sock(&bound_sin, &sinlen);
 	send_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	/*
+	int target_size = (1 << 15);
+	int sock_buf_size;
+	socklen_t len;
+	
+	if(setsockopt(recv_socket, SOL_SOCKET, SO_RCVBUF, &target_size, sizeof(int)) != 0) {
+		FATAL(NULL);
+	}
+	if(getsockopt(recv_socket, SOL_SOCKET, SO_RCVBUF, &sock_buf_size, &len) != 0) {
+		FATAL(NULL);
+	}
+	printf("sock_buf_size: %d\n", sock_buf_size);
+	*/
 
 	srand(time(NULL));
 
@@ -190,46 +238,57 @@ int main(int argc, char *argv[]) {
 #endif
 
 	if(arch_type == 0) {
-		ps = new per_message(send_socket, sin, recv_socket, recv_message, NULL);
+		ps = new per_message(send_socket, sin, recv_socket, rec_msg_fn, rec_msg_args);
 	}
 	else {
-		ps = new per_proto(send_socket, sin, recv_socket, recv_message, NULL);
+		ps = new per_proto(send_socket, sin, recv_socket, rec_msg_fn, rec_msg_args);
 	}
 
-	for(i = 0; i < 4; i++) {
-		tests[i].ps = ps;
-		tests[i].app_proto_id = test_ids[i];
-		while(tp.dispatch_thread(arch_test_thread, &tests[i], NULL) < 0) {
-			usleep(10000);
+	if(comm_type == 0) {
+		for(i = 0; i < 4; i++) {
+			tests[i].ps = ps;
+			tests[i].app_proto_id = test_ids[i];
+			while(tp.dispatch_thread(arch_test_thread, &tests[i], NULL) < 0) {
+				usleep(10000);
+			}
 		}
 	}
 
-
+	if(comm_type == 0) {
 #ifdef NET03_ON_MSG_CALLBACK
-	int dns, rdp, tel, ftp;
-	while(1) {
+		int dns, rdp, tel, ftp;
+		while(1) {
 #if COUNT_WITH_SEMS
-		sem_getvalue(&dns_recd_count, &dns);
-		sem_getvalue(&rdp_recd_count, &rdp);
-		sem_getvalue(&tel_recd_count, &tel);
-		sem_getvalue(&ftp_recd_count, &ftp);
+			sem_getvalue(&dns_recd_count, &dns);
+			sem_getvalue(&rdp_recd_count, &rdp);
+			sem_getvalue(&tel_recd_count, &tel);
+			sem_getvalue(&ftp_recd_count, &ftp);
 #else
-		dns = dns_recd_count;
-		rdp = rdp_recd_count;
-		tel = tel_recd_count;
-		ftp = ftp_recd_count;
+			dns = dns_recd_count;
+			rdp = rdp_recd_count;
+			tel = tel_recd_count;
+			ftp = ftp_recd_count;
 #endif
-		printf("dns: %d, rdp: %d, tel: %d, ftp: %d\r", dns, rdp, tel, ftp);
-		fflush(stdout);
-		if(dns >= 100 && rdp >= 100 && tel >= 100 && ftp >= 100) {
-			break;
+			printf("dns: %d, rdp: %d, tel: %d, ftp: %d\r", dns, rdp, tel, ftp);
+			fflush(stdout);
+			if(dns >= 100 && rdp >= 100 && tel >= 100 && ftp >= 100) {
+				break;
+			}
+			usleep(1000);
 		}
-		usleep(1000);
-	}
 #else
 	sleep(10);
 #endif
-
+	}
+	else {
+		while(1) {
+			char c;
+			printf("echo mode... press any key to exit\n");
+			scanf("%c", &c);
+			break;
+		}
+	}
+	
 	printf("\n");
 
 #if COUNT_WITH_SEMS
