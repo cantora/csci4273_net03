@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	sock::host_sin(host, host_port, &sin);
-	sock::host_sin("localhost", listen_port, &bound_sin);
+	sock::host_sin("0.0.0.0", listen_port, &bound_sin);
 	recv_socket = sock::bound_udp_sock(&bound_sin, &sinlen);
 	send_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	/*

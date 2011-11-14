@@ -49,7 +49,7 @@ void net_iface::transfer(net02::message *msg) const {
 	while(1) {
 		if( (status = pthread_mutex_trylock(&m_send_socket_mtx) ) == 0) {
 #ifdef NET03_SLOW_DOWN_UDP_SEND_RATE
-			usleep(10);
+			usleep(1000);
 #endif
 			sent = sendto(m_send_socket, flat_msg, msg_len, 0, (const sockaddr *) &m_sin, sizeof(m_sin) );
 	
