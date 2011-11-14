@@ -8,6 +8,7 @@
 extern "C" {
 #include <semaphore.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 }
 
 using namespace std;
@@ -173,7 +174,9 @@ int main(int argc, char *argv[]) {
 	proto_id_t test_ids[4] = {PI_ID_FTP, PI_ID_TEL, PI_ID_RDP, PI_ID_DNS};
 	void (*rec_msg_fn)(void *);
 	void *rec_msg_args;
-
+	struct timeval t_start, t_end;
+	double d_start, d_end;
+	
 	if(argc < 5 || argc > 6) {
 		usage_exit(argv[0]);
 	}
@@ -244,6 +247,8 @@ int main(int argc, char *argv[]) {
 		ps = new per_proto(send_socket, sin, recv_socket, rec_msg_fn, rec_msg_args);
 	}
 
+	gettimeofday(&t_start, NULL);
+
 	if(comm_type == 0) {
 		for(i = 0; i < 4; i++) {
 			tests[i].ps = ps;
@@ -276,8 +281,14 @@ int main(int argc, char *argv[]) {
 			}
 			usleep(1000);
 		}
+		gettimeofday(&t_end, NULL);
+		d_start = t_start.tv_sec*1000000 + (t_start.tv_usec);
+    	d_end = t_end.tv_sec*1000000  + (t_end.tv_usec);
+		printf("\n");
+    	printf("Total Time Taken: %f\n", d_end - d_start);
+    		
 #else
-	sleep(10);
+		sleep(10);
 #endif
 	}
 	else {
