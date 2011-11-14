@@ -154,10 +154,13 @@ void per_proto::proto_process_up(proto_desc_t *pd, ipc_msg_t &new_msg) {
 	dmux_id = net03::strip_proto_header(pd->proto_id, new_msg.msg);
 
 	if(dmux_id == PI_ID_NONE) { /* this level is the "application" level; just print the msg */
+#ifdef NET03_ON_MSG_CALLBACK
 		on_msg_t data = {new_msg.msg, pd->on_msg_args, pd->proto_id};
-		//print_msg(pd->proto_id, new_msg.msg);
 		assert(pd->on_msg_fn != NULL);
 		pd->on_msg_fn(&data);
+#else
+		print_msg(pd->proto_id, new_msg.msg);
+#endif
 		delete new_msg.msg; /* message is no longer needed after this */
 	} 
 	else if(dmux_id > 0 && dmux_id <= PI_NUM_PROTOS) { /* send this down to the next lower level */

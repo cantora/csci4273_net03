@@ -138,11 +138,14 @@ void per_message::process_up(proto_id_t proto_id, per_message *instance, net02::
 		llp = tmp;
 	}
 
-	/* the "application" level. just print the msg. */
-	//print_msg(llp, msg);
+#ifdef NET03_ON_MSG_CALLBACK
 	assert(instance->m_on_msg_fn != NULL);
 	on_msg_data.proto_id = llp;
 	instance->m_on_msg_fn(&on_msg_data);
+#else
+	/* the "application" level. just print the msg. */
+	print_msg(llp, msg);
+#endif
 
 	delete msg;
 }

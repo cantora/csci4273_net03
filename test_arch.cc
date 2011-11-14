@@ -45,12 +45,17 @@ message *create_msg() {
 	return msg;
 }
 
-
+#if COUNT_WITH_SEMS
 sem_t dns_recd_count;
 sem_t rdp_recd_count;
 sem_t tel_recd_count;
 sem_t ftp_recd_count;
-//pthread_mutex_t count_mtx;
+#else
+int dns_recd_count = 0;
+int rdp_recd_count = 0;
+int tel_recd_count = 0;
+int ftp_recd_count = 0;
+#endif
 
 void recv_message(void *on_msg_data) {
 	proto_stack::on_msg_t *data = (proto_stack::on_msg_t *) on_msg_data;
@@ -58,16 +63,32 @@ void recv_message(void *on_msg_data) {
 	
 	switch(data->proto_id) {
 		case PI_ID_FTP :
+#if COUNT_WITH_SEMS
 			sem_post(&ftp_recd_count);
+#else
+			ftp_recd_count++;
+#endif
 			break;
 		case PI_ID_DNS :
+#if COUNT_WITH_SEMS
 			sem_post(&dns_recd_count);
+#else
+			dns_recd_count++;
+#endif
 			break;
 		case PI_ID_TEL :
+#if COUNT_WITH_SEMS
 			sem_post(&tel_recd_count);
+#else
+			tel_recd_count++;
+#endif
 			break;
 		case PI_ID_RDP :
+#if COUNT_WITH_SEMS
 			sem_post(&rdp_recd_count);
+#else
+			rdp_recd_count++;
+#endif
 			break;
 		default :
 			FATAL(NULL); 
@@ -161,10 +182,12 @@ int main(int argc, char *argv[]) {
 
 	srand(time(NULL));
 
+#if COUNT_WITH_SEMS
 	sem_init(&dns_recd_count, 0, 0);
 	sem_init(&rdp_recd_count, 0, 0);
 	sem_init(&tel_recd_count, 0, 0);
 	sem_init(&ftp_recd_count, 0, 0);
+#endif
 
 	if(arch_type == 0) {
 		ps = new per_message(send_socket, sin, recv_socket, recv_message, NULL);
@@ -181,14 +204,21 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	//sleep(10);
+
+#ifdef NET03_ON_MSG_CALLBACK
 	int dns, rdp, tel, ftp;
 	while(1) {
+#if COUNT_WITH_SEMS
 		sem_getvalue(&dns_recd_count, &dns);
 		sem_getvalue(&rdp_recd_count, &rdp);
 		sem_getvalue(&tel_recd_count, &tel);
 		sem_getvalue(&ftp_recd_count, &ftp);
-
+#else
+		dns = dns_recd_count;
+		rdp = rdp_recd_count;
+		tel = tel_recd_count;
+		ftp = ftp_recd_count;
+#endif
 		printf("dns: %d, rdp: %d, tel: %d, ftp: %d\r", dns, rdp, tel, ftp);
 		fflush(stdout);
 		if(dns >= 100 && rdp >= 100 && tel >= 100 && ftp >= 100) {
@@ -196,7 +226,18 @@ int main(int argc, char *argv[]) {
 		}
 		usleep(1000);
 	}
+#else
+	sleep(10);
+#endif
 
 	printf("\n");
+
+#if COUNT_WITH_SEMS
+	sem_destroy(&dns_recd_count);
+	sem_destroy(&rdp_recd_count);
+	sem_destroy(&tel_recd_count);
+	sem_destroy(&ftp_recd_count);
+#endif
+
 	delete ps;
 }
