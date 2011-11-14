@@ -16,7 +16,7 @@ namespace net03 {
 
 class per_proto : public proto_stack {
 	public:
-		per_proto(int send_socket, struct sockaddr_in sin, int recv_socket);
+		per_proto(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args);
 		~per_proto();
 		
 		void send(proto_id_t proto_id, net02::message *msg);
@@ -36,6 +36,8 @@ class per_proto : public proto_stack {
 			proto_desc_type_t type; /* up or down? */
 			net_iface *ifc; /* the virtual network interface */
 			proto_desc_t* netstack; /* a reference to the array of protocols */
+			void (*on_msg_fn)(void *);
+			void *on_msg_args;
 
 			/* ordering is important here. pipe(&struct.read_pipe) <= pipe(int fildes[2]); */
 			int read_pipe; /* fildes[0] */

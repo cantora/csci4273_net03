@@ -16,7 +16,7 @@ namespace net03 {
 
 class per_message : public proto_stack {
 	public:
-		per_message(int send_socket, struct sockaddr_in sin, int recv_socket);
+		per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args);
 		~per_message();
 		
 		void send(proto_id_t proto_id, net02::message *msg);

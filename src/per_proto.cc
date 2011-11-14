@@ -15,7 +15,7 @@ using namespace net03;
 const char *per_proto::PDESC_UP_STR = "up";
 const char *per_proto::PDESC_DOWN_STR = "down";
 
-per_proto::per_proto(int send_socket, struct sockaddr_in sin, int recv_socket) : m_pool(new net02::thread_pool(PI_NUM_PROTOS*2 + 10)), m_ifc(send_socket, sin, recv_socket, m_pool, per_proto::recv_from_ifc, &m_protos_up[PI_ID_ETH-1]) {
+per_proto::per_proto(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(PI_NUM_PROTOS*2 + 10)), m_ifc(send_socket, sin, recv_socket, m_pool, per_proto::recv_from_ifc, &m_protos_up[PI_ID_ETH-1]) {
 	assert(m_pool != NULL);
 
 	for(int i = 0; i < PI_NUM_PROTOS; i++) {
@@ -28,6 +28,8 @@ per_proto::per_proto(int send_socket, struct sockaddr_in sin, int recv_socket) :
 		m_protos_up[i].type = PDESC_UP;
 		m_protos_up[i].ifc = &m_ifc;
 		m_protos_up[i].netstack = m_protos_up;
+		m_protos_up[i].on_msg_fn = m_on_msg_fn;
+		m_protos_up[i].on_msg_args = m_on_msg_args;
 		while(m_pool->dispatch_thread(per_proto::proto_process, &m_protos_up[i], NULL) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
@@ -39,7 +41,9 @@ per_proto::per_proto(int send_socket, struct sockaddr_in sin, int recv_socket) :
 		m_protos_down[i].proto_id = i+1;
 		m_protos_down[i].type = PDESC_DOWN;
 		m_protos_down[i].ifc = &m_ifc;
-		m_protos_down[i].netstack = m_protos_down;;
+		m_protos_down[i].netstack = m_protos_down;
+		m_protos_down[i].on_msg_fn = m_on_msg_fn;
+		m_protos_down[i].on_msg_args = m_on_msg_args;
 		while(m_pool->dispatch_thread(per_proto::proto_process, &m_protos_down[i], NULL) < 0) {
 			usleep(10000); /* 0.01 secs */
 		}
@@ -50,6 +54,7 @@ per_proto::per_proto(int send_socket, struct sockaddr_in sin, int recv_socket) :
 per_proto::~per_proto() {
 	NET03_LOG("per_proto: destroy\n");
 	delete m_pool;
+	//NET03_LOG("per_proto: destroyed thread pool\n");
 
 	for(int i = 0; i < PI_NUM_PROTOS; i++) {
 		pthread_mutex_destroy(&m_protos_up[i].write_pipe_mtx);
@@ -62,7 +67,7 @@ per_proto::~per_proto() {
 
 void per_proto::send(proto_id_t proto_id, net02::message *msg) {
 	assert(proto_id > 0);
-	assert(proto_id < PI_NUM_PROTOS);
+	assert(proto_id <= PI_NUM_PROTOS);
 	
 	NET03_LOG("send %d byte message over protocol %s\n", msg->len(), net03::proto_id_to_name[proto_id]);
 
@@ -149,7 +154,10 @@ void per_proto::proto_process_up(proto_desc_t *pd, ipc_msg_t &new_msg) {
 	dmux_id = net03::strip_proto_header(pd->proto_id, new_msg.msg);
 
 	if(dmux_id == PI_ID_NONE) { /* this level is the "application" level; just print the msg */
-		print_msg(new_msg.msg);
+		on_msg_t data = {new_msg.msg, pd->on_msg_args, pd->proto_id};
+		//print_msg(pd->proto_id, new_msg.msg);
+		assert(pd->on_msg_fn != NULL);
+		pd->on_msg_fn(&data);
 		delete new_msg.msg; /* message is no longer needed after this */
 	} 
 	else if(dmux_id > 0 && dmux_id <= PI_NUM_PROTOS) { /* send this down to the next lower level */

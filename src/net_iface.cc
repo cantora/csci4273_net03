@@ -3,7 +3,10 @@
 
 extern "C" {
 #include <errno.h>
+#include <unistd.h>
 }
+
+#include <cassert>
 
 using namespace net03;
 
@@ -89,7 +92,7 @@ void net_iface::recv_loop(void *this_ptr) {
 			if(errno != EAGAIN) {
 				FATAL(NULL);	
 			}
-			usleep(100000);
+			//usleep(100);
 		}			
 		else {
 			NET03_LOG("net_iface (listen): received %d byte message\n", msg_len);
@@ -102,8 +105,8 @@ void net_iface::recv_loop(void *this_ptr) {
 			for_recv_fn->args = instance->m_recv_args;
 
 			while(instance->m_pool->dispatch_thread(instance->m_recv_fn, 
-									for_recv_fn, net_iface::recv_msg_fn_at_exit) < 0) {
-				usleep(10000); /* 0.01 secs */
+						for_recv_fn, net_iface::recv_msg_fn_at_exit) < 0) {
+				usleep(100); /* 0.01 secs */
 			}
 
 			buf = new char[bufsize];

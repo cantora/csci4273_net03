@@ -5,6 +5,10 @@
 #include "sock.h"
 #include "net03_common.h"
 
+extern "C" {
+#include <semaphore.h>
+}
+
 using namespace std;
 using namespace net03;
 using namespace net02;
@@ -41,15 +45,44 @@ message *create_msg() {
 	return msg;
 }
 
+
+sem_t dns_recd_count;
+sem_t rdp_recd_count;
+sem_t tel_recd_count;
+sem_t ftp_recd_count;
+//pthread_mutex_t count_mtx;
+
+void recv_message(void *on_msg_data) {
+	proto_stack::on_msg_t *data = (proto_stack::on_msg_t *) on_msg_data;
+	//printf("recd %s msg\n", proto_id_to_name[data->proto_id]);
+	
+	switch(data->proto_id) {
+		case PI_ID_FTP :
+			sem_post(&ftp_recd_count);
+			break;
+		case PI_ID_DNS :
+			sem_post(&dns_recd_count);
+			break;
+		case PI_ID_TEL :
+			sem_post(&tel_recd_count);
+			break;
+		case PI_ID_RDP :
+			sem_post(&rdp_recd_count);
+			break;
+		default :
+			FATAL(NULL); 
+	}
+}
+
 int test_proto_stack(proto_stack *ps, proto_id_t app_proto) {
 	int i;
 	message *msg;
 	char buf[256];
 
-	sleep(4);
-	printf("test proto_stack\n");
+	//sleep(4);
+	//printf("test proto_stack %s\n", proto_id_to_name[app_proto]);
 
-	printf("\n\n\n\n\n");
+	//printf("\n\n\n\n\n");
 	for(i = 0; i < 10; i++) {
 		sleep(0.1);	
 		fflush(stdout);
@@ -59,12 +92,11 @@ int test_proto_stack(proto_stack *ps, proto_id_t app_proto) {
 		msg = create_msg();
 		//msg->flatten(buf);
 		//buf[msg->len()] = 0x00;
-		printf("send msg %d\n", i+1);
+		//printf("send msg %d\n", i+1);
 						
 		ps->send(app_proto, msg); /* eth proto will delete msg */
 	}
 
-	sleep(1);
 	return 0;
 }
 
@@ -129,22 +161,42 @@ int main(int argc, char *argv[]) {
 
 	srand(time(NULL));
 
+	sem_init(&dns_recd_count, 0, 0);
+	sem_init(&rdp_recd_count, 0, 0);
+	sem_init(&tel_recd_count, 0, 0);
+	sem_init(&ftp_recd_count, 0, 0);
+
 	if(arch_type == 0) {
-		ps = new per_message(send_socket, sin, recv_socket);
-
-		for(i = 0; i < 4; i++) {
-			tests[i].ps = ps;
-			tests[i].app_proto_id = test_ids[i];
-			while(tp.dispatch_thread(arch_test_thread, &tests[i], NULL) < 0) {
-				usleep(10000);
-			}
-		}
-
-		sleep(45);
+		ps = new per_message(send_socket, sin, recv_socket, recv_message, NULL);
 	}
 	else {
-		
+		ps = new per_proto(send_socket, sin, recv_socket, recv_message, NULL);
 	}
 
+	for(i = 0; i < 4; i++) {
+		tests[i].ps = ps;
+		tests[i].app_proto_id = test_ids[i];
+		while(tp.dispatch_thread(arch_test_thread, &tests[i], NULL) < 0) {
+			usleep(10000);
+		}
+	}
+
+	//sleep(10);
+	int dns, rdp, tel, ftp;
+	while(1) {
+		sem_getvalue(&dns_recd_count, &dns);
+		sem_getvalue(&rdp_recd_count, &rdp);
+		sem_getvalue(&tel_recd_count, &tel);
+		sem_getvalue(&ftp_recd_count, &ftp);
+
+		printf("dns: %d, rdp: %d, tel: %d, ftp: %d\r", dns, rdp, tel, ftp);
+		fflush(stdout);
+		if(dns >= 100 && rdp >= 100 && tel >= 100 && ftp >= 100) {
+			break;
+		}
+		usleep(1000);
+	}
+
+	printf("\n");
 	delete ps;
 }
