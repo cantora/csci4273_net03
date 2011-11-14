@@ -46,7 +46,7 @@ PROTO_UP_FN_DEF(1)
 	m_proto_up[ID-1] = PROTO_UP_FN(ID);
 
 
-per_message::per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(25 + 1)), m_ifc(send_socket, sin, recv_socket, m_pool, per_message::recv_from_ifc, this) {
+per_message::per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(100 + 1)), m_ifc(send_socket, sin, recv_socket, m_pool, per_message::recv_from_ifc, this) {
 	int i;
 	assert(m_pool != NULL);
 
@@ -79,13 +79,15 @@ void per_message::send(proto_id_t proto_id, net02::message *msg) {
 	pmd->id = proto_id;
 	pmd->msg = msg;
 
+	
 	while(m_pool->dispatch_thread(per_message::process_down, pmd, NULL) < 0) {
-		usleep(10000); /* 0.01 secs */
+		usleep(1000);
 	}	
+	NET03_LOG("dispatched thread to send message\n");
 }
 
 void per_message::process_down(void *per_msg_data) {
-	per_msg_data_t *pmd = (per_msg_data_t *) per_msg_data;;
+	per_msg_data_t *pmd = (per_msg_data_t *) per_msg_data;
 	proto_id_t next_id, hlp, tmp;
 	const char *next_name;
 	char prefix[32];
@@ -94,15 +96,15 @@ void per_message::process_down(void *per_msg_data) {
 	assert(pmd->id <= PI_NUM_PROTOS);
 	assert(pmd->msg->len() > 0);
 
-	sprintf(prefix, "process_down(0x%08x)", pmd->msg);
-	NET03_LOG("%s: process %d byte outgoing message\n", prefix, pmd->msg->len());
+	/*sprintf(prefix, "process_down(0x%08x)", pmd->msg);
+	NET03_LOG("%s: process %d byte outgoing message\n", prefix, pmd->msg->len());*/
 
 	next_id = pmd->id;
 	hlp = PI_ID_NONE;
 
 	while(next_id != PI_ID_NONE) {
 		next_name = proto_id_to_name[next_id];
-		NET03_LOG("%s: %s (%d)\n", prefix, next_name, next_id);
+		//NET03_LOG("%s: %s (%d)\n", prefix, next_name, next_id);
 		tmp = next_id;
 		next_id = pmd->instance->m_proto_down[next_id-1](hlp, pmd->msg);
 		hlp = tmp;
@@ -124,15 +126,15 @@ void per_message::process_up(proto_id_t proto_id, per_message *instance, net02::
 	assert(proto_id <= PI_NUM_PROTOS);
 	assert(msg->len() > 0);
 
-	sprintf(prefix, "process_up(0x%08x)", msg);
-	NET03_LOG("%s: process %d byte incoming message\n", prefix, msg->len());
+	/*sprintf(prefix, "process_up(0x%08x)", msg);
+	NET03_LOG("%s: process %d byte incoming message\n", prefix, msg->len());*/
 
 	next_id = proto_id;
 	llp = PI_ID_NONE;
 
 	while(next_id != PI_ID_NONE) {
 		next_name = proto_id_to_name[next_id];
-		NET03_LOG("%s: %s (%d)\n", prefix, next_name, next_id);
+		//NET03_LOG("%s: %s (%d)\n", prefix, next_name, next_id);
 		tmp = next_id;
 		next_id = instance->m_proto_up[next_id-1](msg);
 		llp = tmp;

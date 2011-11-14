@@ -93,7 +93,7 @@ void net_iface::recv_loop(void *this_ptr) {
 		//NET03_LOG("net_iface (listen): block on recvfrom\n");
 		if( (msg_len = recvfrom(instance->m_recv_socket, buf, bufsize, 0, NULL, NULL)) < 1) {
 			if(errno != EAGAIN) {
-				FATAL(NULL);	
+				FATAL(NULL);
 			}
 			//usleep(100);
 		}			
@@ -106,11 +106,12 @@ void net_iface::recv_loop(void *this_ptr) {
 			/* this gets deleted by the guy who receives this message */
 			for_recv_fn->msg = new net02::message(buf, msg_len); 
 			for_recv_fn->args = instance->m_recv_args;
-
+		
 			while(instance->m_pool->dispatch_thread(instance->m_recv_fn, 
-						for_recv_fn, net_iface::recv_msg_fn_at_exit) < 0) {
-				usleep(100); /* 0.01 secs */
+						for_recv_fn, NULL /*net_iface::recv_msg_fn_at_exit*/) < 0) {
+				usleep(100);
 			}
+			NET03_LOG("net_iface (listen): dispatched thread\n");
 
 			buf = new char[bufsize];
 			msg_len = 0;

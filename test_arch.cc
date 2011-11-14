@@ -97,6 +97,14 @@ void recv_message(void *on_msg_data) {
 	}
 }
 
+/* 
+ * note: with process-per-message this can cause 
+ * problems when the thread pool is too small.
+ * if all the threads are being used then when
+ * this thread goes to try and send a message
+ * the per_message class will spin forever trying 
+ * to dispatch a thread.
+ */
 void echo_message(void *on_msg_data) {
 	proto_stack::on_msg_t *data = (proto_stack::on_msg_t *) on_msg_data;
 	proto_stack *ps = *( (proto_stack **)data->args); 
