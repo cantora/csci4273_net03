@@ -1,0 +1,14 @@
+
+example usage: 
+host1> make test_arch ARG="per-protocol echo 48484 56789 elra-04.cs.colorado.edu"
+
+host2> make test_arch ARG="per-protocol active 56789 48484 98.245.122.67 "
+
+creates the main test program and runs the per-protocol architecture.
+the 'active' flag causes the test program to connect to another instance
+of the test program on host 98.245.122.67 which is running under 'echo'
+mode (as opposed to 'active' mode). the active program sends 100 messages from
+each protocol and records the time it takes for the echo instance to echo each
+message back to the active test program. 
+
+
