@@ -70,7 +70,7 @@ void per_message::send(proto_id_t proto_id, net02::message *msg) {
 	per_msg_data_t *pmd;
 
 	assert(proto_id > 0);
-	assert(proto_id < PI_NUM_PROTOS);
+	assert(proto_id <= PI_NUM_PROTOS);
 	
 	NET03_LOG("send %d byte message over protocol %s\n", msg->len(), net03::proto_id_to_name[proto_id]);
 
@@ -94,7 +94,7 @@ void per_message::process_down(void *per_msg_data) {
 	assert(pmd->id <= PI_NUM_PROTOS);
 	assert(pmd->msg->len() > 0);
 
-	sprintf(prefix, "process_down(0x%x): ", pmd->msg);
+	sprintf(prefix, "process_down(0x%08x)", pmd->msg);
 	NET03_LOG("%s: process %d byte outgoing message\n", prefix, pmd->msg->len());
 
 	next_id = pmd->id;
@@ -110,6 +110,8 @@ void per_message::process_down(void *per_msg_data) {
 
 	pmd->instance->m_ifc.transfer(pmd->msg);
 
+	/* delete the msg now */
+	delete pmd->msg;
 	delete pmd;
 }
 
@@ -122,7 +124,7 @@ void per_message::process_up(proto_id_t proto_id, per_message *instance, net02::
 	assert(proto_id <= PI_NUM_PROTOS);
 	assert(msg->len() > 0);
 
-	sprintf(prefix, "process_up(0x%x): ", msg);
+	sprintf(prefix, "process_up(0x%08x)", msg);
 	NET03_LOG("%s: process %d byte incoming message\n", prefix, msg->len());
 
 	next_id = proto_id;

@@ -167,8 +167,8 @@ void per_proto::proto_process_down(proto_desc_t *pd, ipc_msg_t &new_msg) {
 	
 	if(pd->proto_id == PI_ID_ETH) { /* this level is the "hardware" level; send over virtual network */
 		pd->ifc->transfer(new_msg.msg);
-		/* whoever passed this to per_proto should delete this */
-		//delete new_msg.msg; /* message is no longer needed after this */
+		
+		delete new_msg.msg; /* message is no longer needed after this */
 	} 
 	else { /* send this down to the next lower level */
 		proto_id_t llp = proto_id_to_llp_id[pd->proto_id];

@@ -3,7 +3,7 @@
 DEFINES 		= -DNET03_DEBUG_LOG
 #DEFINES			+= -DNET02_DEBUG_LOG 
 INCLUDES 		+= -iquote"./src" -iquote"./net02" -iquote"./net01" 
-DBG			= -g
+DBG				= -g
 #OPTIMIZE		= -Os
 C_FLAGS 		= -Wall -Wextra $(OPTIMIZE) $(DBG) -w $(DEFINES) $(INCLUDES) -pthread
 
@@ -26,6 +26,12 @@ default: all
 
 .PHONY: all
 all: $(OBJECTS)
+
+test_arch: $(BUILD)/test_arch
+	$(BUILD)/test_arch $(ARG)
+
+$(BUILD)/test_arch: test_arch.cc $(OBJECTS)
+	$(CXX_CMD) $+ -o $@
 
 $(BUILD)/%.o: src/%.cc src/%.h ./Makefile
 	$(CXX_CMD) $(DEP_FLAGS) -c $< -o $@

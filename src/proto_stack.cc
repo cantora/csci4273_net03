@@ -15,5 +15,5 @@ void proto_stack::print_msg(net02::message *msg) {
 	msg->flatten(buf);
 	buf[len] = 0x00;
 
-	printf("application message received: '%s'\n", buf);	
+	printf("%d byte application message received: '%s'\n", len, buf);	
 }
