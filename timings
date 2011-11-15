@@ -1,3 +1,56 @@
+NORMAL TESTS:
+as specified in the assignment document, these tests have two hosts running 
+an instance of a network architecture and both send and receive messages to
+each other. (i ran these tests from an elra with both programs running 
+locally). note that the timings here are reliable because one side
+has to wait for the other to start up.
+
+1. per-proto <-> per-proto
+sleep 1; ./build/test_arch per-protocol active 48484 56789
+dns: 100, rdp: 138, tel: 153, ftp: 153
+Total Time Taken: 1025321.000000
+
+--------------------------------------
+
+./build/test_arch per-protocol active 56789 48484
+dns: 103, rdp: 103, tel: 100, ftp: 104
+Total Time Taken: 466747.000000
+
+########################################
+########################################
+
+2. per-proto <-> per-message
+sleep 1; ./build/test_arch per-protocol active 48484 56789
+dns: 120, rdp: 107, tel: 100, ftp: 117
+Total Time Taken: 1971981.000000
+
+-----------------------------------------
+./build/test_arch per-message active 56789 48484
+dns: 100, rdp: 100, tel: 100, ftp: 105
+Total Time Taken: 435571.000000
+
+#########################################
+#########################################
+
+3. per-message <-> per-message
+sleep 1; ./build/test_arch per-message active 48484 56789
+dns: 118, rdp: 100, tel: 107, ftp: 129
+Total Time Taken: 969493.000000
+
+-------------------------------------
+
+./build/test_arch per-message active 56789 48484
+dns: 134, rdp: 108, tel: 100, ftp: 123
+Total Time Taken: 521234.000000
+
+
+
+TIMING TESTS:
+these tests are to compare the speed of each network stack architecture. one host
+is running a network stack that will receive messages, process the message up
+to the protocol level and then send the message back down the stack to echo it
+back to the active host which sent the messages. 
+
 for all tests: home pc echoing back to elra
 
 1. (echo) process per protocol <-> (active) process per protocol:

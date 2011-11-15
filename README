@@ -11,4 +11,25 @@ mode (as opposed to 'active' mode). the active program sends 100 messages from
 each protocol and records the time it takes for the echo instance to echo each
 message back to the active test program. 
 
+if you want to just run a quick test to see if messages are being sent you can run
+test_arch and have it send messages to itself:
 
+./build/test_arch per-message active 48484 48484  
+dns: 100, rdp: 124, tel: 108, ftp: 126
+Total Time Taken: 508063.000000
+
+if you want to see more debug output you can edit the makefile and uncomment the 
+NET03_DEBUG_LOG define and comment the NET03_ON_MSG_CALLBACK define. then run
+make clean and rerun the above command.
+
+
+RESULTS:
+all the timing results are in the 'timing' text file.
+
+NOTE: if you want to try running the echo tests from the TIMING TESTS section of
+the timing file, you have to increase the size of the thread pool in per_message.cc
+to 70 or so.
+if you leave the size at 25 threads test_arch locks up when run in echo mode 
+because each thread that receives a message dispatches a send thread after 
+the message goes all the way up to the application level, this causes the 
+pool to get depleted too fast. 
