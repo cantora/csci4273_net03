@@ -1,0 +1,56 @@
+for all tests: home pc echoing back to elra
+
+1. (echo) process per protocol <-> (active) process per protocol:
+home > ./build/test_arch per-protocol echo 48484 56789 elra-04.cs.colorado.edu
+echo mode... press any key to exit
+
+------------------------------
+
+elra > ./build/test_arch per-protocol active 56789 48484 98.245.122.67 
+dns: 100, rdp: 100, tel: 100, ftp: 100
+Total Time Taken: 519540.000000 # 0.519 seconds
+
+###################################
+###################################
+###################################
+
+2. (echo) process per protocol <-> (active) process per message
+home > ./build/test_arch per-protocol echo 48484 56789 elra-04.cs.colorado.edu
+echo mode... press any key to exit
+
+-----------------------------
+
+elra > ./build/test_arch per-message active 56789 48484 98.245.122.67 
+dns: 100, rdp: 100, tel: 100, ftp: 100
+Total Time Taken: 501833.000000 # 0.5 seconds
+
+#############################
+#############################
+#############################
+
+
+3. (echo) process per message <-> (active) process per protocol
+home > ./build/test_arch per-message echo 48484 56789 elra-04.cs.colorado.edu
+echo mode... press any key to exit
+
+-------------------------------
+
+elra > ./build/test_arch per-protocol active 56789 48484 98.245.122.67 
+dns: 100, rdp: 100, tel: 100, ftp: 100
+Total Time Taken: 544855.000000 # 0.544 seconds
+
+
+################################
+################################
+################################
+
+
+4. (echo) process per message <-> (active) process per message
+home > ./build/test_arch per-message echo 48484 56789 elra-04.cs.colorado.edu
+echo mode... press any key to exit
+
+---------------------------------
+
+elra > ./build/test_arch per-message active 56789 48484 98.245.122.67 
+dns: 100, rdp: 100, tel: 100, ftp: 100
+Total Time Taken: 500961.000000 # 0.5 seconds
