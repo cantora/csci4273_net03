@@ -133,13 +133,14 @@ int test_proto_stack(proto_stack *ps, proto_id_t app_proto) {
 		fflush(stdout);
 	}
 
-	for(i = 0; i < 100; i++) {
+	while(1) for(i = 0; i < 100; i++) {
 		msg = create_msg();
 		//msg->flatten(buf);
 		//buf[msg->len()] = 0x00;
 		//printf("send msg %d\n", i+1);
 						
 		ps->send(app_proto, msg); /* eth proto will delete msg */
+		usleep(100); /* yeild to other threads */
 	}
 
 	return 0;
@@ -316,6 +317,8 @@ int main(int argc, char *argv[]) {
 	sem_destroy(&tel_recd_count);
 	sem_destroy(&ftp_recd_count);
 #endif
+
+	sleep(3);
 
 	delete ps;
 }

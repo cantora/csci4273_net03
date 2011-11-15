@@ -5,8 +5,8 @@ DEFINES			+= -DNET03_ON_MSG_CALLBACK
 DEFINES			+= -DNET03_SLOW_DOWN_UDP_SEND_RATE
 #DEFINES			+= -DNET02_DEBUG_LOG 
 INCLUDES 		+= -iquote"./src" -iquote"./net02" -iquote"./net01" 
-#DBG				= -g
-OPTIMIZE		= -O3
+DBG				= -g
+#OPTIMIZE		= -O3
 C_FLAGS 		= -Wall -Wextra $(OPTIMIZE) $(DBG) -w $(DEFINES) $(INCLUDES) -pthread
 
 CXX_FLAGS		= $(C_FLAGS)

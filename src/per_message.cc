@@ -46,7 +46,7 @@ PROTO_UP_FN_DEF(1)
 	m_proto_up[ID-1] = PROTO_UP_FN(ID);
 
 
-per_message::per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(70 + 1)), m_ifc(send_socket, sin, recv_socket, m_pool, per_message::recv_from_ifc, this) {
+per_message::per_message(int send_socket, struct sockaddr_in sin, int recv_socket, void (*on_msg_fn)(void *on_msg_data), void *args) : proto_stack(on_msg_fn, args), m_pool(new net02::thread_pool(25 + 1)), m_ifc(send_socket, sin, recv_socket, m_pool, per_message::recv_from_ifc, this) {
 	int i;
 	assert(m_pool != NULL);
 
